@@ -52,6 +52,13 @@ export async function POST(req: NextRequest) {
           tuition_status,
           invoice_issued,
           onboarding_completed,
+          conversation_stage,
+          intent_level,
+          assigned_advisor,
+          payment_deadline,
+          last_call_summary,
+          visa_stage,
+          late_applicant,
           Course (
             *
           )
@@ -100,7 +107,14 @@ export async function POST(req: NextRequest) {
           admissionStatus: studentRecord ? studentRecord.admission_status : 'Offer Letter', // Fallback status if not enrolled yet
           tuitionStatus: studentRecord ? studentRecord.tuition_status : null,
           invoiceIssued: studentRecord ? studentRecord.invoice_issued : false,
-          onboardingCompleted: studentRecord ? studentRecord.onboarding_completed : false
+          onboardingCompleted: studentRecord ? studentRecord.onboarding_completed : false,
+          conversationStage: studentRecord ? studentRecord.conversation_stage : null,
+          intentLevel: studentRecord ? studentRecord.intent_level : null,
+          assignedAdvisor: studentRecord ? studentRecord.assigned_advisor : null,
+          paymentDeadline: studentRecord ? studentRecord.payment_deadline : null,
+          lastCallSummary: studentRecord ? studentRecord.last_call_summary : null,
+          visaStage: studentRecord ? studentRecord.visa_stage : null,
+          lateApplicant: studentRecord ? studentRecord.late_applicant : false
         }
       },
       { status: 200 }
