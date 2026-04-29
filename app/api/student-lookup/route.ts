@@ -38,22 +38,23 @@ export async function POST(req: NextRequest) {
 
     // 3. Query the Supabase database
     // We strictly select ONLY the required fields to prevent exposing sensitive data.
-    // We join the profiles table to get the first and last name.
+    // We query 'profiles' first to ensure we find applicants who only have offer letters
+    // but aren't in the 'students' table yet.
     const { data, error } = await supabase
-      .from('students')
+      .from('profiles')
       .select(`
         student_id,
-        program_id,
-        admission_status,
-        tuition_status,
-        invoice_issued,
-        onboarding_completed,
-        profiles (
-          first_name,
-          last_name
-        ),
-        Course (
-          *
+        first_name,
+        last_name,
+        date_of_birth,
+        students (
+          admission_status,
+          tuition_status,
+          invoice_issued,
+          onboarding_completed,
+          Course (
+            *
+          )
         )
       `)
       .eq('student_id', studentId)
@@ -68,7 +69,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 5. Handle student not found
+    // 5. Handle student/profile not found
     if (!data || data.length === 0) {
       return NextResponse.json(
         { success: false, message: 'Student not found' },
@@ -76,15 +77,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const studentData = data[0];
+    const profile = data[0];
+    const fullName = `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Unknown';
 
-    // Safely extract the name from the joined profiles table
-    const profile = Array.isArray(studentData.profiles) ? studentData.profiles[0] : studentData.profiles;
-    const fullName = profile ? `${profile.first_name} ${profile.last_name}`.trim() : 'Unknown';
+    // Safely extract the student record (if they are enrolled and in the students table)
+    const studentRecord = Array.isArray(profile.students) ? profile.students[0] : profile.students;
 
-    // Safely extract the course name from the joined Course table
-    const courseObj = Array.isArray(studentData.Course) ? studentData.Course[0] : studentData.Course;
-    // Try common column names for course title (name, title, course_name)
+    // Safely extract the course name from the joined Course table (if they have one)
+    const courseObj = studentRecord ? (Array.isArray(studentRecord.Course) ? studentRecord.Course[0] : studentRecord.Course) : null;
     const programmeName = courseObj ? (courseObj.name || courseObj.title || courseObj.course_name || 'Unknown Course') : 'Unknown';
 
     // 6. Map the database snake_case fields to camelCase for the API response
@@ -94,12 +94,13 @@ export async function POST(req: NextRequest) {
         success: true,
         student: {
           fullName: fullName,
-          studentId: studentData.student_id,
+          studentId: profile.student_id,
+          dateOfBirth: profile.date_of_birth || null,
           programme: programmeName,
-          admissionStatus: studentData.admission_status,
-          tuitionStatus: studentData.tuition_status,
-          invoiceIssued: studentData.invoice_issued,
-          onboardingCompleted: studentData.onboarding_completed
+          admissionStatus: studentRecord ? studentRecord.admission_status : 'Offer Letter', // Fallback status if not enrolled yet
+          tuitionStatus: studentRecord ? studentRecord.tuition_status : null,
+          invoiceIssued: studentRecord ? studentRecord.invoice_issued : false,
+          onboardingCompleted: studentRecord ? studentRecord.onboarding_completed : false
         }
       },
       { status: 200 }
