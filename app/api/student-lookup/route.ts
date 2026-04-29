@@ -57,7 +57,7 @@ export async function POST(req: NextRequest) {
         )
       `)
       .eq('student_id', studentId)
-      .single();
+      .limit(1);
 
     // 4. Handle Supabase query errors
     if (error) {
@@ -69,19 +69,21 @@ export async function POST(req: NextRequest) {
     }
 
     // 5. Handle student not found
-    if (!data) {
+    if (!data || data.length === 0) {
       return NextResponse.json(
         { success: false, message: 'Student not found' },
         { status: 404 }
       );
     }
 
+    const studentData = data[0];
+
     // Safely extract the name from the joined profiles table
-    const profile = Array.isArray(data.profiles) ? data.profiles[0] : data.profiles;
+    const profile = Array.isArray(studentData.profiles) ? studentData.profiles[0] : studentData.profiles;
     const fullName = profile ? `${profile.first_name} ${profile.last_name}`.trim() : 'Unknown';
 
     // Safely extract the course name from the joined Course table
-    const courseObj = Array.isArray(data.Course) ? data.Course[0] : data.Course;
+    const courseObj = Array.isArray(studentData.Course) ? studentData.Course[0] : studentData.Course;
     // Try common column names for course title (name, title, course_name)
     const programmeName = courseObj ? (courseObj.name || courseObj.title || courseObj.course_name || 'Unknown Course') : 'Unknown';
 
@@ -92,12 +94,12 @@ export async function POST(req: NextRequest) {
         success: true,
         student: {
           fullName: fullName,
-          studentId: data.student_id,
+          studentId: studentData.student_id,
           programme: programmeName,
-          admissionStatus: data.admission_status,
-          tuitionStatus: data.tuition_status,
-          invoiceIssued: data.invoice_issued,
-          onboardingCompleted: data.onboarding_completed
+          admissionStatus: studentData.admission_status,
+          tuitionStatus: studentData.tuition_status,
+          invoiceIssued: studentData.invoice_issued,
+          onboardingCompleted: studentData.onboarding_completed
         }
       },
       { status: 200 }
