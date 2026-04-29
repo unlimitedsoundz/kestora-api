@@ -37,18 +37,21 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Query the Supabase database
-    // We strictly select ONLY the required fields to prevent exposing sensitive data
-    // such as passwords, payment details, or internal notes.
+    // We strictly select ONLY the required fields to prevent exposing sensitive data.
+    // We join the profiles table to get the first and last name.
     const { data, error } = await supabase
       .from('students')
       .select(`
-        full_name,
         student_id,
         programme,
         admission_status,
         tuition_status,
         invoice_issued,
-        onboarding_completed
+        onboarding_completed,
+        profiles (
+          first_name,
+          last_name
+        )
       `)
       .eq('student_id', studentId)
       .single();
@@ -70,13 +73,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Safely extract the name from the joined profiles table
+    // Handle cases where profiles might be an array or a single object
+    const profile = Array.isArray(data.profiles) ? data.profiles[0] : data.profiles;
+    const fullName = profile ? `${profile.first_name} ${profile.last_name}`.trim() : 'Unknown';
+
     // 6. Map the database snake_case fields to camelCase for the API response
     // and return the successful JSON response
     return NextResponse.json(
       {
         success: true,
         student: {
-          fullName: data.full_name,
+          fullName: fullName,
           studentId: data.student_id,
           programme: data.programme,
           admissionStatus: data.admission_status,
