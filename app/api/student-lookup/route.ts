@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
       .from('students')
       .select(`
         student_id,
-        programme,
+        program_id,
         admission_status,
         tuition_status,
         invoice_issued,
@@ -51,6 +51,9 @@ export async function POST(req: NextRequest) {
         profiles (
           first_name,
           last_name
+        ),
+        Course (
+          *
         )
       `)
       .eq('student_id', studentId)
@@ -74,9 +77,13 @@ export async function POST(req: NextRequest) {
     }
 
     // Safely extract the name from the joined profiles table
-    // Handle cases where profiles might be an array or a single object
     const profile = Array.isArray(data.profiles) ? data.profiles[0] : data.profiles;
     const fullName = profile ? `${profile.first_name} ${profile.last_name}`.trim() : 'Unknown';
+
+    // Safely extract the course name from the joined Course table
+    const courseObj = Array.isArray(data.Course) ? data.Course[0] : data.Course;
+    // Try common column names for course title (name, title, course_name)
+    const programmeName = courseObj ? (courseObj.name || courseObj.title || courseObj.course_name || 'Unknown Course') : 'Unknown';
 
     // 6. Map the database snake_case fields to camelCase for the API response
     // and return the successful JSON response
@@ -86,7 +93,7 @@ export async function POST(req: NextRequest) {
         student: {
           fullName: fullName,
           studentId: data.student_id,
-          programme: data.programme,
+          programme: programmeName,
           admissionStatus: data.admission_status,
           tuitionStatus: data.tuition_status,
           invoiceIssued: data.invoice_issued,
