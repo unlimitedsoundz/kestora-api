@@ -53,15 +53,24 @@ export async function POST(req: NextRequest) {
       .eq('student_id', studentId)
       .single();
 
-    // 4. Handle student not found or Supabase query errors
-    if (error || !data) {
+    // 4. Handle Supabase query errors
+    if (error) {
+      console.error('Supabase error:', error);
+      return NextResponse.json(
+        { success: false, message: 'Database error', error: error.message },
+        { status: 500 }
+      );
+    }
+
+    // 5. Handle student not found
+    if (!data) {
       return NextResponse.json(
         { success: false, message: 'Student not found' },
         { status: 404 }
       );
     }
 
-    // 5. Map the database snake_case fields to camelCase for the API response
+    // 6. Map the database snake_case fields to camelCase for the API response
     // and return the successful JSON response
     return NextResponse.json(
       {
