@@ -45,15 +45,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Normalize student ID: trim and uppercase (format is KCXXXXXXX)
+    // Normalize student ID: trim and uppercase
     const studentId = rawStudentId.toString().trim().toUpperCase();
-    console.log(`Searching for student with normalized ID: "${studentId}"`);
+    
+    // Fuzzy ID: also try with a hyphen after "KC" if it's missing, or without it if it's there
+    const fuzzyId = studentId.startsWith('KC') && !studentId.includes('-') 
+      ? `KC-${studentId.substring(2)}` 
+      : studentId.replace('KC-', 'KC');
 
-    // 3. Query the Supabase database
-    // We strictly select ONLY the required fields to prevent exposing sensitive data.
-    // We query 'profiles' first to ensure we find applicants who only have offer letters
-    // but aren't in the 'students' table yet.
-    const { data, error } = await supabase
+    console.log(`Searching for student with IDs: "${studentId}" or "${fuzzyId}"`);
+
+    // 3. Query Strategy: Try 'profiles' first
+    let { data, error } = await supabase
       .from('profiles')
       .select(`
         student_id,
@@ -77,10 +80,51 @@ export async function POST(req: NextRequest) {
           )
         )
       `)
-      .eq('student_id', studentId)
+      .or(`student_id.eq.${studentId},student_id.eq.${fuzzyId}`)
       .limit(1);
 
-    // 4. Handle Supabase query errors
+    // 4. Fallback Strategy: If not found in profiles, try searching 'students' table directly
+    if (!error && (!data || data.length === 0)) {
+      console.log(`Not found in profiles, checking students table directly...`);
+      const { data: studentData, error: studentError } = await supabase
+        .from('students')
+        .select(`
+          admission_status,
+          tuition_status,
+          invoice_issued,
+          onboarding_completed,
+          conversation_stage,
+          intent_level,
+          assigned_advisor,
+          payment_deadline,
+          last_call_summary,
+          visa_stage,
+          late_applicant,
+          student_id,
+          Course (*),
+          profiles!inner (
+            student_id,
+            first_name,
+            last_name,
+            date_of_birth
+          )
+        `)
+        .or(`student_id.eq.${studentId},student_id.eq.${fuzzyId}`)
+        .limit(1);
+      
+      if (studentData && studentData.length > 0) {
+        // Reformat fallback data to match the expected structure
+        const s = studentData[0];
+        data = [{
+          ...s.profiles,
+          student_id: s.student_id,
+          students: [s]
+        }] as any;
+      }
+      error = studentError;
+    }
+
+    // 5. Handle Supabase query errors
     if (error) {
       console.error('Supabase error:', error);
       return NextResponse.json(
@@ -89,9 +133,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 5. Handle student/profile not found
+    // 6. Handle student not found
     if (!data || data.length === 0) {
-      console.warn(`No record found for student ID: "${studentId}"`);
+      console.warn(`No record found in profiles or students for ID: "${studentId}"`);
       return NextResponse.json(
         { success: false, message: 'Student not found' },
         { status: 404 }
