@@ -19,22 +19,30 @@ export async function POST(req: NextRequest) {
     let body;
     try {
       body = await req.json();
+      console.log('Incoming student-lookup request body:', body);
     } catch (e) {
+      console.error('Failed to parse JSON body:', e);
       return NextResponse.json(
         { success: false, message: 'Invalid JSON body' },
         { status: 400 }
       );
     }
 
-    const { studentId } = body;
+    // Support both camelCase (studentId) and snake_case (student_id)
+    const rawStudentId = body.studentId || body.student_id;
 
     // 2. Validate input - ensure studentId is provided
-    if (!studentId) {
+    if (!rawStudentId) {
+      console.warn('Missing studentId in request body');
       return NextResponse.json(
         { success: false, message: 'studentId is required' },
         { status: 400 }
       );
     }
+
+    // Normalize student ID: trim and uppercase (format is KCXXXXXXX)
+    const studentId = rawStudentId.toString().trim().toUpperCase();
+    console.log(`Searching for student with normalized ID: "${studentId}"`);
 
     // 3. Query the Supabase database
     // We strictly select ONLY the required fields to prevent exposing sensitive data.
@@ -78,6 +86,7 @@ export async function POST(req: NextRequest) {
 
     // 5. Handle student/profile not found
     if (!data || data.length === 0) {
+      console.warn(`No record found for student ID: "${studentId}"`);
       return NextResponse.json(
         { success: false, message: 'Student not found' },
         { status: 404 }
@@ -96,6 +105,7 @@ export async function POST(req: NextRequest) {
 
     // 6. Map the database snake_case fields to camelCase for the API response
     // and return the successful JSON response
+    console.log(`Successfully found record for: ${fullName} (${studentId})`);
     return NextResponse.json(
       {
         success: true,
