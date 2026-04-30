@@ -177,11 +177,15 @@ export async function POST(req: NextRequest) {
       }
     };
 
-    // If it's a Vapi Tool Call, we MUST return the toolCallId
+    // If it's a Vapi Tool Call, we MUST return the results array format
     if (toolCallId) {
       return NextResponse.json({
-        toolCallId,
-        result
+        results: [
+          {
+            toolCallId,
+            result
+          }
+        ]
       }, { status: 200 });
     }
 
