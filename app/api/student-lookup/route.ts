@@ -104,42 +104,44 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: false, message: 'Database error' }, { status: 500 });
     }
 
-    // 5. Handle student not found
+    // 5. Handle student not found with a structured JSON (Vapi Best Practice)
     if (!data || data.length === 0) {
       console.warn(`No record found for: "${input}"`);
-      return NextResponse.json({ success: false, message: 'Student not found' }, { status: 404 });
+      return NextResponse.json({
+        found: false,
+        message: 'No student record found'
+      }, { status: 200 }); // Using 200 ensures Vapi receives the "found: false" message correctly
     }
 
     const profile = data[0];
     const fullName = `${profile.first_name || ''} ${profile.last_name || ''}`.trim() || 'Unknown';
-
-    // Safely extract the student record (if they are enrolled and in the students table)
     const studentRecord = Array.isArray(profile.students) ? profile.students[0] : profile.students;
-
-    // Safely extract the course name from the joined Course table (if they have one)
     const courseObj = studentRecord ? (Array.isArray(studentRecord.Course) ? studentRecord.Course[0] : studentRecord.Course) : null;
     const programmeName = courseObj ? (courseObj.name || courseObj.title || courseObj.course_name || 'Unknown Course') : 'Unknown';
 
-    // 7. Final Flattened Response for Vapi (Top-level only)
+    // 6. Final Optimized Response following the Vapi Guide
     console.log(`Successfully found record for: ${fullName} (${profile.student_id})`);
     
     return NextResponse.json(
       {
-        fullName: fullName,
-        studentId: profile.student_id,
-        dateOfBirth: profile.date_of_birth || null,
-        programme: programmeName,
-        admissionStatus: studentRecord ? studentRecord.admission_status : 'Offer Letter',
-        tuitionStatus: studentRecord ? studentRecord.tuition_status : null,
-        invoiceIssued: studentRecord ? studentRecord.invoice_issued : false,
-        onboardingCompleted: studentRecord ? studentRecord.onboarding_completed : false,
-        conversationStage: studentRecord ? studentRecord.conversation_stage : null,
-        intentLevel: studentRecord ? studentRecord.intent_level : null,
-        assignedAdvisor: studentRecord ? studentRecord.assigned_advisor : null,
-        paymentDeadline: studentRecord ? studentRecord.payment_deadline : null,
-        lastCallSummary: studentRecord ? studentRecord.last_call_summary : null,
-        visaStage: studentRecord ? studentRecord.visa_stage : null,
-        lateApplicant: studentRecord ? studentRecord.late_applicant : false
+        found: true,
+        student: {
+          studentId: profile.student_id,
+          fullName: fullName,
+          dateOfBirth: profile.date_of_birth || null,
+          program: programmeName,
+          status: studentRecord ? studentRecord.admission_status : 'Offer Letter',
+          tuitionStatus: studentRecord ? studentRecord.tuition_status : null,
+          invoiceIssued: studentRecord ? studentRecord.invoice_issued : false,
+          onboardingCompleted: studentRecord ? studentRecord.onboarding_completed : false,
+          conversationStage: studentRecord ? studentRecord.conversation_stage : null,
+          intentLevel: studentRecord ? studentRecord.intent_level : null,
+          assignedAdvisor: studentRecord ? studentRecord.assigned_advisor : null,
+          paymentDeadline: studentRecord ? studentRecord.payment_deadline : null,
+          lastCallSummary: studentRecord ? studentRecord.last_call_summary : null,
+          visaStage: studentRecord ? studentRecord.visa_stage : null,
+          lateApplicant: studentRecord ? studentRecord.late_applicant : false
+        }
       },
       { status: 200 }
     );
