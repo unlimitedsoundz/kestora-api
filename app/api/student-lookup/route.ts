@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 // We use the service role key to securely query data from the backend
 // without relying on user sessions, perfect for a server-to-server Vapi integration.
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || ''; 
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -57,11 +57,11 @@ export async function POST(req: NextRequest) {
       parsedArgs.studentId ||
       parsedArgs.student_id ||
       parsedArgs.id ||
-      body.firstName || 
-      body.first_name || 
-      body.name || 
-      body.studentId || 
-      body.student_id || 
+      body.firstName ||
+      body.first_name ||
+      body.name ||
+      body.studentId ||
+      body.student_id ||
       body.id ||
       body.search ||
       ""
@@ -69,8 +69,8 @@ export async function POST(req: NextRequest) {
 
     if (!input) {
       console.warn('No search input found in body. Format might be unexpected:', body);
-      return NextResponse.json({ 
-        found: false, 
+      return NextResponse.json({
+        found: false,
         message: 'Search input (name or studentId) is required',
         receivedBody: body // Return the body so we can see it in Vapi logs
       }, { status: 400 });
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
 
     // Determine if input is a Student ID (starts with KC or SYK) or a Name
     const isStudentId = /^KC|^SYK/i.test(input);
-    
+
     // 3. Query Strategy
     let query = supabase.from('profiles').select(`
         student_id,
@@ -118,7 +118,7 @@ export async function POST(req: NextRequest) {
       const nameParts = cleanedName.split(/\s+/);
       const firstNamePart = nameParts[0];
       const lastNamePart = nameParts.length > 1 ? nameParts[nameParts.length - 1] : firstNamePart;
-      
+
       console.log(`Searching by Name: "${input}" (Cleaned: ${cleanedName})`);
       query = query.or(`first_name.ilike.%${cleanedName}%,last_name.ilike.%${cleanedName}%,first_name.ilike.%${firstNamePart}%,last_name.ilike.%${lastNamePart}%`);
     }
@@ -147,11 +147,11 @@ export async function POST(req: NextRequest) {
     const programmeName = courseObj ? (courseObj.name || courseObj.title || courseObj.course_name || 'Unknown Course') : 'Unknown';
 
     // 6. Final Optimized Response following the Vapi Webhook Guide
-    const status = studentRecord ? studentRecord.admission_status : 'Offer Letter';
+    const status = studentRecord ? studentRecord.admission_status : 'In Review';
     const summary = `${fullName} has been found. Status: ${status}. Programme: ${programmeName}.`;
-    
+
     console.log(`Successfully found record for: ${fullName} (${profile.student_id})`);
-    
+
     // Extract toolCallId for the mandatory Vapi response format
     const toolCallId = body?.message?.toolCalls?.[0]?.id;
 
