@@ -9,42 +9,68 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 /**
+ * GET /api/save-call-summary
+ * Simple status check to verify the API is online via browser.
+ */
+export async function GET() {
+  return NextResponse.json({
+    success: true,
+    message: 'Kestora Save Call Summary API is online',
+    timestamp: new Date().toISOString(),
+    databaseConnected: !!(supabaseUrl && supabaseKey)
+  });
+}
+
+/**
  * POST /api/save-call-summary
  * Saves Vapi AI call summaries into the Supabase database.
+ * Supports both direct JSON posts and Vapi's nested tool-call format.
  */
 export async function POST(req: NextRequest) {
   try {
-    // 1. Parse the incoming JSON request body
-    let body;
+    // 1. Parse the incoming JSON request body with logging for debugging
+    const rawBody = await req.text();
+    console.log('Incoming save-call-summary request body:', rawBody);
+    
+    let body: any = {};
     try {
-      body = await req.json();
+      if (rawBody) {
+        body = JSON.parse(rawBody);
+      }
     } catch (e) {
+      console.error('Failed to parse JSON body:', e);
       return NextResponse.json(
         { success: false, message: 'Invalid JSON body' },
         { status: 400 }
       );
     }
 
-    const { 
-      student_id, 
-      caller_name, 
-      call_summary, 
-      caller_concern, 
-      next_action 
-    } = body;
+    // 2. Extract arguments - support both Flat (Direct) and Nested (Vapi Tool) formats
+    // If it's a Vapi message, the parameters are inside toolCalls[0].function.arguments
+    const toolCallArgs = body?.message?.toolCalls?.[0]?.function?.arguments;
+    const parsedArgs = typeof toolCallArgs === 'string' ? JSON.parse(toolCallArgs) : (toolCallArgs || {});
 
-    // 2. Validate input - ensure required fields are provided
+    // Collect fields from either the parsed Vapi args or the top-level body (for direct calls)
+    const student_id = parsedArgs.student_id || parsedArgs.studentId || body.student_id || body.studentId;
+    const caller_name = parsedArgs.caller_name || parsedArgs.callerName || body.caller_name || body.callerName;
+    const call_summary = parsedArgs.call_summary || parsedArgs.callSummary || body.call_summary || body.callSummary;
+    const caller_concern = parsedArgs.caller_concern || parsedArgs.callerConcern || body.caller_concern || body.callerConcern || null;
+    const next_action = parsedArgs.next_action || parsedArgs.nextAction || body.next_action || body.nextAction || null;
+
+    // 3. Validate input - ensure required fields are provided
     if (!student_id || !caller_name || !call_summary) {
+      console.warn('Missing required fields for call summary:', { student_id, caller_name, call_summary });
       return NextResponse.json(
         { 
           success: false, 
-          message: 'student_id, caller_name, and call_summary are required fields' 
+          message: 'student_id, caller_name, and call_summary are required fields',
+          received: { student_id, caller_name, call_summary }
         },
         { status: 400 }
       );
     }
 
-    // 3. Insert the call log into the Supabase database
+    // 4. Insert the call log into the Supabase database
     const { error } = await supabase
       .from('call_logs')
       .insert([
@@ -52,12 +78,12 @@ export async function POST(req: NextRequest) {
           student_id,
           caller_name,
           call_summary,
-          caller_concern: caller_concern || null,
-          next_action: next_action || null
+          caller_concern,
+          next_action
         }
       ]);
 
-    // 4. Handle Supabase database errors
+    // 5. Handle Supabase database errors
     if (error) {
       console.error('Supabase error inserting call log:', error);
       return NextResponse.json(
@@ -66,14 +92,28 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 5. Return JSON success response
-    return NextResponse.json(
-      { success: true, message: 'Call summary saved successfully' },
-      { status: 200 }
-    );
+    console.log(`Successfully saved call summary for student ${student_id} from ${caller_name}`);
+
+    // 6. Return response in the format Vapi expects if it was a tool call
+    const toolCallId = body?.message?.toolCalls?.[0]?.id;
+    const result = { success: true, message: 'Call summary saved successfully' };
+
+    if (toolCallId) {
+      return NextResponse.json({
+        results: [
+          {
+            toolCallId,
+            result
+          }
+        ]
+      }, { status: 200 });
+    }
+
+    // Fallback for direct API calls
+    return NextResponse.json(result, { status: 200 });
 
   } catch (error) {
-    // 6. Catch any unexpected server errors
+    // 7. Catch any unexpected server errors
     console.error('Error in save-call-summary API:', error);
     return NextResponse.json(
       { success: false, message: 'Internal server error' },
