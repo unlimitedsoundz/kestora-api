@@ -147,17 +147,21 @@ export async function POST(req: NextRequest) {
     const programmeName = courseObj ? (courseObj.name || courseObj.title || courseObj.course_name || 'Unknown Course') : 'Unknown';
 
     // 6. Final Optimized Response following the Vapi Guide
+    const status = studentRecord ? studentRecord.admission_status : 'Offer Letter';
+    const summary = `Found record for ${fullName}. Admission Status: ${status}. Programme: ${programmeName}.`;
+    
     console.log(`Successfully found record for: ${fullName} (${profile.student_id})`);
     
     return NextResponse.json(
       {
         found: true,
+        message: summary, // Added for the AI to read directly
         student: {
           studentId: profile.student_id,
           fullName: fullName,
           dateOfBirth: profile.date_of_birth || null,
           program: programmeName,
-          status: studentRecord ? studentRecord.admission_status : 'Offer Letter',
+          status: status,
           tuitionStatus: studentRecord ? studentRecord.tuition_status : null,
           invoiceIssued: studentRecord ? studentRecord.invoice_issued : false,
           onboardingCompleted: studentRecord ? studentRecord.onboarding_completed : false,
