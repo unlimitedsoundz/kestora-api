@@ -120,35 +120,26 @@ export async function POST(req: NextRequest) {
     const courseObj = studentRecord ? (Array.isArray(studentRecord.Course) ? studentRecord.Course[0] : studentRecord.Course) : null;
     const programmeName = courseObj ? (courseObj.name || courseObj.title || courseObj.course_name || 'Unknown Course') : 'Unknown';
 
-    // 7. Universal Response Strategy for Vapi
-    // We return the data at the top level AND nested in 'result'/'student' 
-    // to ensure the AI model can see it regardless of its configuration.
-    const studentData = {
-      fullName: fullName,
-      studentId: profile.student_id,
-      dateOfBirth: profile.date_of_birth || null,
-      programme: programmeName,
-      admissionStatus: studentRecord ? studentRecord.admission_status : 'Offer Letter',
-      tuitionStatus: studentRecord ? studentRecord.tuition_status : null,
-      invoiceIssued: studentRecord ? studentRecord.invoice_issued : false,
-      onboardingCompleted: studentRecord ? studentRecord.onboarding_completed : false,
-      conversationStage: studentRecord ? studentRecord.conversation_stage : null,
-      intentLevel: studentRecord ? studentRecord.intent_level : null,
-      assignedAdvisor: studentRecord ? studentRecord.assigned_advisor : null,
-      paymentDeadline: studentRecord ? studentRecord.payment_deadline : null,
-      lastCallSummary: studentRecord ? studentRecord.last_call_summary : null,
-      visaStage: studentRecord ? studentRecord.visa_stage : null,
-      lateApplicant: studentRecord ? studentRecord.late_applicant : false
-    };
-
+    // 7. Final Flattened Response for Vapi (Top-level only)
     console.log(`Successfully found record for: ${fullName} (${profile.student_id})`);
     
     return NextResponse.json(
       {
-        success: true,
-        ...studentData,
-        result: studentData,
-        student: studentData
+        fullName: fullName,
+        studentId: profile.student_id,
+        dateOfBirth: profile.date_of_birth || null,
+        programme: programmeName,
+        admissionStatus: studentRecord ? studentRecord.admission_status : 'Offer Letter',
+        tuitionStatus: studentRecord ? studentRecord.tuition_status : null,
+        invoiceIssued: studentRecord ? studentRecord.invoice_issued : false,
+        onboardingCompleted: studentRecord ? studentRecord.onboarding_completed : false,
+        conversationStage: studentRecord ? studentRecord.conversation_stage : null,
+        intentLevel: studentRecord ? studentRecord.intent_level : null,
+        assignedAdvisor: studentRecord ? studentRecord.assigned_advisor : null,
+        paymentDeadline: studentRecord ? studentRecord.payment_deadline : null,
+        lastCallSummary: studentRecord ? studentRecord.last_call_summary : null,
+        visaStage: studentRecord ? studentRecord.visa_stage : null,
+        lateApplicant: studentRecord ? studentRecord.late_applicant : false
       },
       { status: 200 }
     );
