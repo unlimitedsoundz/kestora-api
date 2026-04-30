@@ -80,11 +80,14 @@ export async function POST(req: NextRequest) {
     }
 
     const nameInput = rawFirstName.toString().trim();
-    const nameParts = nameInput.split(/\s+/);
+    // Handle spelled out names (P.E.T.E.R or P E T E R) by removing single characters followed by spaces/dots
+    const cleanedName = nameInput.length > 5 && nameInput.includes(' ') ? nameInput.replace(/(?:^|\s)([a-zA-Z])(?:\s|\.|$)/g, '$1') : nameInput;
+    
+    const nameParts = cleanedName.split(/\s+/);
     const firstNamePart = nameParts[0];
     const lastNamePart = nameParts.length > 1 ? nameParts[nameParts.length - 1] : firstNamePart;
 
-    console.log(`Searching for student with name input: "${nameInput}" (Parts: ${firstNamePart}, ${lastNamePart})`);
+    console.log(`Searching for student with name input: "${nameInput}" (Cleaned: ${cleanedName})`);
 
     // 4. Query Strategy: Search by first_name or last_name with smart fallbacks
     let query = supabase.from('profiles').select(`
@@ -110,13 +113,8 @@ export async function POST(req: NextRequest) {
         )
       `);
 
-    // If it's a full name (e.g. "Peter Parker"), try matching both
-    if (nameParts.length > 1) {
-      query = query.ilike('first_name', `%${firstNamePart}%`).ilike('last_name', `%${lastNamePart}%`);
-    } else {
-      // If it's a single name, search across both columns
-      query = query.or(`first_name.ilike.%${nameInput}%,last_name.ilike.%${nameInput}%`);
-    }
+    // Try a few different matching strategies
+    query = query.or(`first_name.ilike.%${cleanedName}%,last_name.ilike.%${cleanedName}%,first_name.ilike.%${firstNamePart}%,last_name.ilike.%${lastNamePart}%`);
 
     const { data, error } = await query.limit(1);
 
@@ -124,12 +122,12 @@ export async function POST(req: NextRequest) {
     if (error) {
       console.error('Supabase error during lookup:', error);
       return NextResponse.json(
-        { success: false, message: 'Database error', error: error.message },
+        { success: false, message: 'Database error' },
         { status: 500 }
       );
     }
 
-    // 5. Handle student not found
+    // 6. Handle student not found
     if (!data || data.length === 0) {
       console.warn(`No record found for input: "${nameInput}"`);
       return NextResponse.json(
@@ -148,29 +146,26 @@ export async function POST(req: NextRequest) {
     const courseObj = studentRecord ? (Array.isArray(studentRecord.Course) ? studentRecord.Course[0] : studentRecord.Course) : null;
     const programmeName = courseObj ? (courseObj.name || courseObj.title || courseObj.course_name || 'Unknown Course') : 'Unknown';
 
-    // 6. Map the database snake_case fields to camelCase for the API response
-    // and return the successful JSON response
+    // 7. Flatten the response for Vapi to read easily at the top level
     console.log(`Successfully found record for: ${fullName} (${profile.student_id})`);
     return NextResponse.json(
       {
         success: true,
-        student: {
-          fullName: fullName,
-          studentId: profile.student_id,
-          dateOfBirth: profile.date_of_birth || null,
-          programme: programmeName,
-          admissionStatus: studentRecord ? studentRecord.admission_status : 'Offer Letter', // Fallback status if not enrolled yet
-          tuitionStatus: studentRecord ? studentRecord.tuition_status : null,
-          invoiceIssued: studentRecord ? studentRecord.invoice_issued : false,
-          onboardingCompleted: studentRecord ? studentRecord.onboarding_completed : false,
-          conversationStage: studentRecord ? studentRecord.conversation_stage : null,
-          intentLevel: studentRecord ? studentRecord.intent_level : null,
-          assignedAdvisor: studentRecord ? studentRecord.assigned_advisor : null,
-          paymentDeadline: studentRecord ? studentRecord.payment_deadline : null,
-          lastCallSummary: studentRecord ? studentRecord.last_call_summary : null,
-          visaStage: studentRecord ? studentRecord.visa_stage : null,
-          lateApplicant: studentRecord ? studentRecord.late_applicant : false
-        }
+        fullName: fullName,
+        studentId: profile.student_id,
+        dateOfBirth: profile.date_of_birth || null,
+        programme: programmeName,
+        admissionStatus: studentRecord ? studentRecord.admission_status : 'Offer Letter',
+        tuitionStatus: studentRecord ? studentRecord.tuition_status : null,
+        invoiceIssued: studentRecord ? studentRecord.invoice_issued : false,
+        onboardingCompleted: studentRecord ? studentRecord.onboarding_completed : false,
+        conversationStage: studentRecord ? studentRecord.conversation_stage : null,
+        intentLevel: studentRecord ? studentRecord.intent_level : null,
+        assignedAdvisor: studentRecord ? studentRecord.assigned_advisor : null,
+        paymentDeadline: studentRecord ? studentRecord.payment_deadline : null,
+        lastCallSummary: studentRecord ? studentRecord.last_call_summary : null,
+        visaStage: studentRecord ? studentRecord.visa_stage : null,
+        lateApplicant: studentRecord ? studentRecord.late_applicant : false
       },
       { status: 200 }
     );
