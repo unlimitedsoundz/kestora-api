@@ -146,36 +146,47 @@ export async function POST(req: NextRequest) {
     const courseObj = studentRecord ? (Array.isArray(studentRecord.Course) ? studentRecord.Course[0] : studentRecord.Course) : null;
     const programmeName = courseObj ? (courseObj.name || courseObj.title || courseObj.course_name || 'Unknown Course') : 'Unknown';
 
-    // 6. Final Optimized Response following the Vapi Guide
+    // 6. Final Optimized Response following the Vapi Webhook Guide
     const status = studentRecord ? studentRecord.admission_status : 'Offer Letter';
-    const summary = `Found record for ${fullName}. Admission Status: ${status}. Programme: ${programmeName}.`;
+    const summary = `${fullName} has been found. Status: ${status}. Programme: ${programmeName}.`;
     
     console.log(`Successfully found record for: ${fullName} (${profile.student_id})`);
     
-    return NextResponse.json(
-      {
-        found: true,
-        message: summary, // Added for the AI to read directly
-        student: {
-          studentId: profile.student_id,
-          fullName: fullName,
-          dateOfBirth: profile.date_of_birth || null,
-          program: programmeName,
-          status: status,
-          tuitionStatus: studentRecord ? studentRecord.tuition_status : null,
-          invoiceIssued: studentRecord ? studentRecord.invoice_issued : false,
-          onboardingCompleted: studentRecord ? studentRecord.onboarding_completed : false,
-          conversationStage: studentRecord ? studentRecord.conversation_stage : null,
-          intentLevel: studentRecord ? studentRecord.intent_level : null,
-          assignedAdvisor: studentRecord ? studentRecord.assigned_advisor : null,
-          paymentDeadline: studentRecord ? studentRecord.payment_deadline : null,
-          lastCallSummary: studentRecord ? studentRecord.last_call_summary : null,
-          visaStage: studentRecord ? studentRecord.visa_stage : null,
-          lateApplicant: studentRecord ? studentRecord.late_applicant : false
-        }
-      },
-      { status: 200 }
-    );
+    // Extract toolCallId for the mandatory Vapi response format
+    const toolCallId = body?.message?.toolCalls?.[0]?.id;
+
+    const result = {
+      found: true,
+      message: summary,
+      student: {
+        studentId: profile.student_id,
+        fullName: fullName,
+        dateOfBirth: profile.date_of_birth || null,
+        program: programmeName,
+        status: status,
+        tuitionStatus: studentRecord ? studentRecord.tuition_status : null,
+        invoiceIssued: studentRecord ? studentRecord.invoice_issued : false,
+        onboardingCompleted: studentRecord ? studentRecord.onboarding_completed : false,
+        conversationStage: studentRecord ? studentRecord.conversation_stage : null,
+        intentLevel: studentRecord ? studentRecord.intent_level : null,
+        assignedAdvisor: studentRecord ? studentRecord.assigned_advisor : null,
+        paymentDeadline: studentRecord ? studentRecord.payment_deadline : null,
+        lastCallSummary: studentRecord ? studentRecord.last_call_summary : null,
+        visaStage: studentRecord ? studentRecord.visa_stage : null,
+        lateApplicant: studentRecord ? studentRecord.late_applicant : false
+      }
+    };
+
+    // If it's a Vapi Tool Call, we MUST return the toolCallId
+    if (toolCallId) {
+      return NextResponse.json({
+        toolCallId,
+        result
+      }, { status: 200 });
+    }
+
+    // Fallback for direct API calls
+    return NextResponse.json(result, { status: 200 });
 
   } catch (error) {
     // 6. Catch any unexpected server errors and prevent data leakage
