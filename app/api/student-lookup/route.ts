@@ -29,7 +29,12 @@ export async function POST(req: NextRequest) {
     }
 
     // Support both camelCase (studentId) and snake_case (student_id)
-    const rawStudentId = body.studentId || body.student_id;
+    let rawStudentId = body.studentId || body.student_id;
+
+    // If the ID is passed as an object (e.g. { value: '...' }), extract the value
+    if (rawStudentId && typeof rawStudentId === 'object') {
+      rawStudentId = rawStudentId.value || rawStudentId.id || Object.values(rawStudentId)[0];
+    }
 
     // 2. Validate input - ensure studentId is provided
     if (!rawStudentId) {
