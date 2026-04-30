@@ -45,8 +45,18 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 2. Identify the input - searching in every possible field Vapi might use
+    // 2. Identify the input - support both Direct Tool Call and Webhook formats
+    // Try to find the arguments in the nested Vapi message structure first
+    const toolCallArgs = body?.message?.toolCalls?.[0]?.function?.arguments;
+    const parsedArgs = typeof toolCallArgs === 'string' ? JSON.parse(toolCallArgs) : (toolCallArgs || {});
+
     const input = (
+      parsedArgs.firstName ||
+      parsedArgs.first_name ||
+      parsedArgs.name ||
+      parsedArgs.studentId ||
+      parsedArgs.student_id ||
+      parsedArgs.id ||
       body.firstName || 
       body.first_name || 
       body.name || 
@@ -54,16 +64,15 @@ export async function POST(req: NextRequest) {
       body.student_id || 
       body.id ||
       body.search ||
-      body.query ||
       ""
     ).toString().trim();
 
     if (!input) {
-      console.warn('No search input found in body:', body);
+      console.warn('No search input found in body. Format might be unexpected:', body);
       return NextResponse.json({ 
         found: false, 
         message: 'Search input (name or studentId) is required',
-        receivedFields: Object.keys(body)
+        receivedBody: body // Return the body so we can see it in Vapi logs
       }, { status: 400 });
     }
 
