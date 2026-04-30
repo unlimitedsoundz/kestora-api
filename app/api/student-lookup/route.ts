@@ -10,6 +10,19 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 /**
+ * GET /api/student-lookup
+ * Simple status check to verify the API is online via browser.
+ */
+export async function GET() {
+  return NextResponse.json({
+    success: true,
+    message: 'Kestora Student Lookup API is online',
+    timestamp: new Date().toISOString(),
+    databaseConnected: !!(supabaseUrl && supabaseKey)
+  });
+}
+
+/**
  * POST /api/student-lookup
  * Retrieves student information securely for Vapi AI agent.
  */
