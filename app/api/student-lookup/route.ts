@@ -28,35 +28,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Support both camelCase (studentId) and snake_case (student_id)
-    let rawStudentId = body.studentId || body.student_id;
+    // Support both camelCase (firstName) and snake_case (first_name)
+    const rawFirstName = body.firstName || body.first_name || body.name;
 
-    // If the ID is passed as an object (e.g. { value: '...' }), extract the value
-    if (rawStudentId && typeof rawStudentId === 'object') {
-      rawStudentId = rawStudentId.value || rawStudentId.id || Object.values(rawStudentId)[0];
-    }
-
-    // 2. Validate input - ensure studentId is provided
-    if (!rawStudentId) {
-      console.warn('Missing studentId in request body');
+    // 2. Validate input - ensure firstName is provided
+    if (!rawFirstName) {
+      console.warn('Missing firstName in request body');
       return NextResponse.json(
-        { success: false, message: 'studentId is required' },
+        { success: false, message: 'firstName is required' },
         { status: 400 }
       );
     }
 
-    // Normalize student ID: trim and uppercase
-    const studentId = rawStudentId.toString().trim().toUpperCase();
-    
-    // Fuzzy ID: also try with a hyphen after "KC" if it's missing, or without it if it's there
-    const fuzzyId = studentId.startsWith('KC') && !studentId.includes('-') 
-      ? `KC-${studentId.substring(2)}` 
-      : studentId.replace('KC-', 'KC');
+    const firstName = rawFirstName.toString().trim();
+    console.log(`Searching for student with first name: "${firstName}"`);
 
-    console.log(`Searching for student with IDs: "${studentId}" or "${fuzzyId}"`);
-
-    // 3. Query Strategy: Try 'profiles' first
-    let { data, error } = await supabase
+    // 3. Query Strategy: Search by first_name (case-insensitive)
+    const { data, error } = await supabase
       .from('profiles')
       .select(`
         student_id,
@@ -80,51 +68,10 @@ export async function POST(req: NextRequest) {
           )
         )
       `)
-      .or(`student_id.eq.${studentId},student_id.eq.${fuzzyId}`)
+      .ilike('first_name', firstName)
       .limit(1);
 
-    // 4. Fallback Strategy: If not found in profiles, try searching 'students' table directly
-    if (!error && (!data || data.length === 0)) {
-      console.log(`Not found in profiles, checking students table directly...`);
-      const { data: studentData, error: studentError } = await supabase
-        .from('students')
-        .select(`
-          admission_status,
-          tuition_status,
-          invoice_issued,
-          onboarding_completed,
-          conversation_stage,
-          intent_level,
-          assigned_advisor,
-          payment_deadline,
-          last_call_summary,
-          visa_stage,
-          late_applicant,
-          student_id,
-          Course (*),
-          profiles!inner (
-            student_id,
-            first_name,
-            last_name,
-            date_of_birth
-          )
-        `)
-        .or(`student_id.eq.${studentId},student_id.eq.${fuzzyId}`)
-        .limit(1);
-      
-      if (studentData && studentData.length > 0) {
-        // Reformat fallback data to match the expected structure
-        const s = studentData[0];
-        data = [{
-          ...s.profiles,
-          student_id: s.student_id,
-          students: [s]
-        }] as any;
-      }
-      error = studentError;
-    }
-
-    // 5. Handle Supabase query errors
+    // 4. Handle Supabase query errors
     if (error) {
       console.error('Supabase error:', error);
       return NextResponse.json(
@@ -133,9 +80,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 6. Handle student not found
+    // 5. Handle student not found
     if (!data || data.length === 0) {
-      console.warn(`No record found in profiles or students for ID: "${studentId}"`);
+      console.warn(`No record found for first name: "${firstName}"`);
       return NextResponse.json(
         { success: false, message: 'Student not found' },
         { status: 404 }
