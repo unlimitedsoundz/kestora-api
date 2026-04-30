@@ -70,12 +70,15 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 4. Insert the call log into the Supabase database
-    const { error } = await supabase
+    // 3. Normalize Student ID (ensure it matches DB format like KC123)
+    const normalizedId = student_id.trim().toUpperCase();
+
+    // 4. Insert the call log into the Supabase 'call_logs' table
+    const { error: logError } = await supabase
       .from('call_logs')
       .insert([
         {
-          student_id,
+          student_id: normalizedId,
           caller_name,
           call_summary,
           caller_concern,
@@ -83,16 +86,27 @@ export async function POST(req: NextRequest) {
         }
       ]);
 
-    // 5. Handle Supabase database errors
-    if (error) {
-      console.error('Supabase error inserting call log:', error);
+    if (logError) {
+      console.error('Supabase error inserting into call_logs:', logError);
       return NextResponse.json(
-        { success: false, message: 'Database error', error: error.message },
+        { success: false, message: 'Database error saving to call_logs', error: logError.message },
         { status: 500 }
       );
     }
 
-    console.log(`Successfully saved call summary for student ${student_id} from ${caller_name}`);
+    // 5. ALSO update the main student record with the latest summary
+    // This ensures the next time the student is looked up, the AI sees the latest context.
+    const { error: studentUpdateError } = await supabase
+      .from('students')
+      .update({ last_call_summary: call_summary })
+      .eq('student_id', normalizedId);
+
+    if (studentUpdateError) {
+      console.warn('Could not update last_call_summary in students table:', studentUpdateError.message);
+      // We don't return an error here because the main log was already saved successfully.
+    }
+
+    console.log(`Successfully saved call summary for student ${normalizedId}`);
 
     // 6. Return response in the format Vapi expects if it was a tool call
     const toolCallId = body?.message?.toolCalls?.[0]?.id;
