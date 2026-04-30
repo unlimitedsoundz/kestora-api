@@ -28,25 +28,43 @@ export async function GET() {
  */
 export async function POST(req: NextRequest) {
   try {
-    // 1. Parse the incoming JSON request body
-    let body;
+    // 1. Parse the incoming request body with fallback
+    let body: any = {};
+    const rawBody = await req.text();
+    console.log('Raw incoming request body:', rawBody);
+
     try {
-      body = await req.json();
-      console.log('Incoming student-lookup request body:', body);
+      if (rawBody) {
+        body = JSON.parse(rawBody);
+      }
     } catch (e) {
       console.error('Failed to parse JSON body:', e);
       return NextResponse.json(
-        { success: false, message: 'Invalid JSON body' },
+        { found: false, message: 'Invalid JSON body', received: rawBody.substring(0, 100) },
         { status: 400 }
       );
     }
 
-    // 2. Identify the input (could be name or studentId)
-    const input = (body.firstName || body.first_name || body.name || body.studentId || body.student_id || "").toString().trim();
+    // 2. Identify the input - searching in every possible field Vapi might use
+    const input = (
+      body.firstName || 
+      body.first_name || 
+      body.name || 
+      body.studentId || 
+      body.student_id || 
+      body.id ||
+      body.search ||
+      body.query ||
+      ""
+    ).toString().trim();
 
     if (!input) {
-      console.warn('No search input provided');
-      return NextResponse.json({ success: false, message: 'Input is required' }, { status: 400 });
+      console.warn('No search input found in body:', body);
+      return NextResponse.json({ 
+        found: false, 
+        message: 'Search input (name or studentId) is required',
+        receivedFields: Object.keys(body)
+      }, { status: 400 });
     }
 
     // Diagnostic: Check if Supabase is properly configured
