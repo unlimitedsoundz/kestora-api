@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
 
     // If it's a full name (e.g. "Peter Parker"), try matching both
     if (nameParts.length > 1) {
-      query = query.and(`first_name.ilike.%${firstNamePart}%,last_name.ilike.%${lastNamePart}%`);
+      query = query.ilike('first_name', `%${firstNamePart}%`).ilike('last_name', `%${lastNamePart}%`);
     } else {
       // If it's a single name, search across both columns
       query = query.or(`first_name.ilike.%${nameInput}%,last_name.ilike.%${nameInput}%`);
@@ -123,7 +123,7 @@ export async function POST(req: NextRequest) {
 
     // 5. Handle student not found
     if (!data || data.length === 0) {
-      console.warn(`No record found for first name: "${firstName}"`);
+      console.warn(`No record found for input: "${nameInput}"`);
       return NextResponse.json(
         { success: false, message: 'Student not found' },
         { status: 404 }
