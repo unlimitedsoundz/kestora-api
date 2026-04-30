@@ -46,7 +46,7 @@ export async function GET() {
     .or(`first_name.ilike.%${cleanedName}%,last_name.ilike.%${cleanedName}%,first_name.ilike.%${firstNamePart}%,last_name.ilike.%${lastNamePart}%`)
     .limit(1);
 
-  let searchResult = "Not found";
+  let searchResult: any = "Not found";
   if (samples && samples[0]) {
     const profile = samples[0];
     const studentRecord = Array.isArray(profile.students) ? profile.students[0] : profile.students;
