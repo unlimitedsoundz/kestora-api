@@ -14,60 +14,11 @@ const supabase = createClient(supabaseUrl, supabaseKey);
  * Simple status check to verify the API is online via browser.
  */
 export async function GET() {
-  // SIMULATE A SEARCH FOR "PETER" TO TEST THE LOGIC
-  const nameInput = "Peter";
-  const cleanedName = nameInput.replace(/(?:^|\s)([a-zA-Z])(?:\s|\.|$)/g, '$1');
-  const nameParts = cleanedName.split(/\s+/);
-  const firstNamePart = nameParts[0];
-  const lastNamePart = nameParts.length > 1 ? nameParts[nameParts.length - 1] : firstNamePart;
-
-  const { data: samples, error: dbError } = await supabase
-    .from('profiles')
-    .select(`
-        student_id,
-        first_name,
-        last_name,
-        date_of_birth,
-        students (
-          admission_status,
-          tuition_status,
-          invoice_issued,
-          onboarding_completed,
-          conversation_stage,
-          intent_level,
-          assigned_advisor,
-          payment_deadline,
-          last_call_summary,
-          visa_stage,
-          late_applicant,
-          Course (*)
-        )
-      `)
-    .or(`first_name.ilike.%${cleanedName}%,last_name.ilike.%${cleanedName}%,first_name.ilike.%${firstNamePart}%,last_name.ilike.%${lastNamePart}%`)
-    .limit(1);
-
-  let searchResult: any = "Not found";
-  if (samples && samples[0]) {
-    const profile = samples[0];
-    const studentRecord = Array.isArray(profile.students) ? profile.students[0] : profile.students;
-    const courseObj = studentRecord ? (Array.isArray(studentRecord.Course) ? studentRecord.Course[0] : studentRecord.Course) : null;
-    const programmeName = courseObj ? (courseObj.name || courseObj.title || courseObj.course_name || 'Unknown Course') : 'Unknown';
-    
-    searchResult = {
-      fullName: `${profile.first_name || ''} ${profile.last_name || ''}`.trim(),
-      studentId: profile.student_id,
-      programme: programmeName,
-      admissionStatus: studentRecord ? studentRecord.admission_status : 'Offer Letter'
-    };
-  }
-
   return NextResponse.json({
     success: true,
     message: 'Kestora Student Lookup API is online',
     timestamp: new Date().toISOString(),
-    databaseConnected: !!(supabaseUrl && supabaseKey),
-    lookupSimulationForPeter: searchResult,
-    dbError: dbError ? dbError.message : null
+    databaseConnected: !!(supabaseUrl && supabaseKey)
   });
 }
 
@@ -178,26 +129,35 @@ export async function POST(req: NextRequest) {
     const courseObj = studentRecord ? (Array.isArray(studentRecord.Course) ? studentRecord.Course[0] : studentRecord.Course) : null;
     const programmeName = courseObj ? (courseObj.name || courseObj.title || courseObj.course_name || 'Unknown Course') : 'Unknown';
 
-    // 7. Flatten the response for Vapi to read easily at the top level
+    // 7. Universal Response Strategy for Vapi
+    // We return the data at the top level AND nested in 'result'/'student' 
+    // to ensure the AI model can see it regardless of its configuration.
+    const studentData = {
+      fullName: fullName,
+      studentId: profile.student_id,
+      dateOfBirth: profile.date_of_birth || null,
+      programme: programmeName,
+      admissionStatus: studentRecord ? studentRecord.admission_status : 'Offer Letter',
+      tuitionStatus: studentRecord ? studentRecord.tuition_status : null,
+      invoiceIssued: studentRecord ? studentRecord.invoice_issued : false,
+      onboardingCompleted: studentRecord ? studentRecord.onboarding_completed : false,
+      conversationStage: studentRecord ? studentRecord.conversation_stage : null,
+      intentLevel: studentRecord ? studentRecord.intent_level : null,
+      assignedAdvisor: studentRecord ? studentRecord.assigned_advisor : null,
+      paymentDeadline: studentRecord ? studentRecord.payment_deadline : null,
+      lastCallSummary: studentRecord ? studentRecord.last_call_summary : null,
+      visaStage: studentRecord ? studentRecord.visa_stage : null,
+      lateApplicant: studentRecord ? studentRecord.late_applicant : false
+    };
+
     console.log(`Successfully found record for: ${fullName} (${profile.student_id})`);
+    
     return NextResponse.json(
       {
         success: true,
-        fullName: fullName,
-        studentId: profile.student_id,
-        dateOfBirth: profile.date_of_birth || null,
-        programme: programmeName,
-        admissionStatus: studentRecord ? studentRecord.admission_status : 'Offer Letter',
-        tuitionStatus: studentRecord ? studentRecord.tuition_status : null,
-        invoiceIssued: studentRecord ? studentRecord.invoice_issued : false,
-        onboardingCompleted: studentRecord ? studentRecord.onboarding_completed : false,
-        conversationStage: studentRecord ? studentRecord.conversation_stage : null,
-        intentLevel: studentRecord ? studentRecord.intent_level : null,
-        assignedAdvisor: studentRecord ? studentRecord.assigned_advisor : null,
-        paymentDeadline: studentRecord ? studentRecord.payment_deadline : null,
-        lastCallSummary: studentRecord ? studentRecord.last_call_summary : null,
-        visaStage: studentRecord ? studentRecord.visa_stage : null,
-        lateApplicant: studentRecord ? studentRecord.late_applicant : false
+        ...studentData,
+        result: studentData,
+        student: studentData
       },
       { status: 200 }
     );
