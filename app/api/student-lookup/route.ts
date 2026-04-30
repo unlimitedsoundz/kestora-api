@@ -40,10 +40,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const firstName = rawFirstName.toString().trim();
-    console.log(`Searching for student with first name: "${firstName}"`);
+    // 3. Diagnostic: Check if Supabase is properly configured
+    if (!supabaseUrl || !supabaseKey) {
+      console.error('CRITICAL: Supabase environment variables are missing!');
+      return NextResponse.json(
+        { success: false, message: 'Server configuration error' },
+        { status: 500 }
+      );
+    }
 
-    // 3. Query Strategy: Search by first_name (case-insensitive)
+    const firstName = rawFirstName.toString().trim();
+    console.log(`Searching for student with name pattern: "%${firstName}%"`);
+
+    // 4. Query Strategy: Search by first_name or last_name (case-insensitive wildcard)
     const { data, error } = await supabase
       .from('profiles')
       .select(`
@@ -68,12 +77,12 @@ export async function POST(req: NextRequest) {
           )
         )
       `)
-      .ilike('first_name', firstName)
+      .or(`first_name.ilike.%${firstName}%,last_name.ilike.%${firstName}%`)
       .limit(1);
 
-    // 4. Handle Supabase query errors
+    // 5. Handle Supabase query errors
     if (error) {
-      console.error('Supabase error:', error);
+      console.error('Supabase error during lookup:', error);
       return NextResponse.json(
         { success: false, message: 'Database error', error: error.message },
         { status: 500 }
