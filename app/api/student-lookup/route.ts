@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
 
     // 6. Map the database snake_case fields to camelCase for the API response
     // and return the successful JSON response
-    console.log(`Successfully found record for: ${fullName} (${studentId})`);
+    console.log(`Successfully found record for: ${fullName} (${profile.student_id})`);
     return NextResponse.json(
       {
         success: true,
