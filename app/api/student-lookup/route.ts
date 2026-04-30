@@ -14,28 +14,60 @@ const supabase = createClient(supabaseUrl, supabaseKey);
  * Simple status check to verify the API is online via browser.
  */
 export async function GET() {
-  // Fetch a few names to verify visibility and formatting
-  const { data: samples, error } = await supabase
-    .from('profiles')
-    .select('first_name, last_name, student_id')
-    .limit(5);
+  // SIMULATE A SEARCH FOR "PETER" TO TEST THE LOGIC
+  const nameInput = "Peter";
+  const cleanedName = nameInput.replace(/(?:^|\s)([a-zA-Z])(?:\s|\.|$)/g, '$1');
+  const nameParts = cleanedName.split(/\s+/);
+  const firstNamePart = nameParts[0];
+  const lastNamePart = nameParts.length > 1 ? nameParts[nameParts.length - 1] : firstNamePart;
 
-  // Specific check for 'Peter' for debugging
-  const { data: peterCheck } = await supabase
+  const { data: samples, error: dbError } = await supabase
     .from('profiles')
-    .select('first_name, last_name, student_id')
-    .or('first_name.ilike.%Peter%,last_name.ilike.%Peter%')
+    .select(`
+        student_id,
+        first_name,
+        last_name,
+        date_of_birth,
+        students (
+          admission_status,
+          tuition_status,
+          invoice_issued,
+          onboarding_completed,
+          conversation_stage,
+          intent_level,
+          assigned_advisor,
+          payment_deadline,
+          last_call_summary,
+          visa_stage,
+          late_applicant,
+          Course (*)
+        )
+      `)
+    .or(`first_name.ilike.%${cleanedName}%,last_name.ilike.%${cleanedName}%,first_name.ilike.%${firstNamePart}%,last_name.ilike.%${lastNamePart}%`)
     .limit(1);
+
+  let searchResult = "Not found";
+  if (samples && samples[0]) {
+    const profile = samples[0];
+    const studentRecord = Array.isArray(profile.students) ? profile.students[0] : profile.students;
+    const courseObj = studentRecord ? (Array.isArray(studentRecord.Course) ? studentRecord.Course[0] : studentRecord.Course) : null;
+    const programmeName = courseObj ? (courseObj.name || courseObj.title || courseObj.course_name || 'Unknown Course') : 'Unknown';
+    
+    searchResult = {
+      fullName: `${profile.first_name || ''} ${profile.last_name || ''}`.trim(),
+      studentId: profile.student_id,
+      programme: programmeName,
+      admissionStatus: studentRecord ? studentRecord.admission_status : 'Offer Letter'
+    };
+  }
 
   return NextResponse.json({
     success: true,
     message: 'Kestora Student Lookup API is online',
     timestamp: new Date().toISOString(),
     databaseConnected: !!(supabaseUrl && supabaseKey),
-    dbError: error ? error.message : null,
-    visibleNames: samples || [],
-    peterFound: peterCheck && peterCheck.length > 0 ? peterCheck[0] : 'No one named Peter found',
-    count: samples ? samples.length : 0
+    lookupSimulationForPeter: searchResult,
+    dbError: dbError ? dbError.message : null
   });
 }
 
