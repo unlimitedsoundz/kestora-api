@@ -14,15 +14,20 @@ const supabase = createClient(supabaseUrl, supabaseKey);
  * Simple status check to verify the API is online via browser.
  */
 export async function GET() {
-  // Fetch one sample record to verify column names for debugging
-  const { data: sample } = await supabase.from('profiles').select('*').limit(1);
+  // Fetch a few names to verify visibility and formatting
+  const { data: samples, error } = await supabase
+    .from('profiles')
+    .select('first_name, last_name, student_id')
+    .limit(5);
 
   return NextResponse.json({
     success: true,
     message: 'Kestora Student Lookup API is online',
     timestamp: new Date().toISOString(),
     databaseConnected: !!(supabaseUrl && supabaseKey),
-    sampleRecord: sample ? sample[0] : 'No records found'
+    dbError: error ? error.message : null,
+    visibleNames: samples || [],
+    count: samples ? samples.length : 0
   });
 }
 
