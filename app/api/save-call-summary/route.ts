@@ -96,17 +96,25 @@ export async function POST(req: NextRequest) {
 
     // 5. ALSO update the main student record with the latest summary
     // This ensures the next time the student is looked up, the AI sees the latest context.
-    const { error: studentUpdateError } = await supabase
+    await supabase
       .from('students')
       .update({ last_call_summary: call_summary })
       .eq('student_id', normalizedId);
 
-    if (studentUpdateError) {
-      console.warn('Could not update last_call_summary in students table:', studentUpdateError.message);
-      // We don't return an error here because the main log was already saved successfully.
+    // 6. Update the profiles table as well to keep data in sync
+    const { error: profileUpdateError } = await supabase
+      .from('profiles')
+      .update({ 
+        last_call_summary: call_summary,
+        updated_at: new Date().toISOString() 
+      })
+      .eq('student_id', normalizedId);
+
+    if (profileUpdateError) {
+      console.warn('Could not update last_call_summary in profiles table:', profileUpdateError.message);
     }
 
-    console.log(`Successfully saved call summary for student ${normalizedId}`);
+    console.log(`Successfully saved call summary for student ${normalizedId} in all tables`);
 
     // 6. Return response in the format Vapi expects if it was a tool call
     const toolCallId = body?.message?.toolCalls?.[0]?.id;
