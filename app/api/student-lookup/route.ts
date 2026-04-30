@@ -20,6 +20,13 @@ export async function GET() {
     .select('first_name, last_name, student_id')
     .limit(5);
 
+  // Specific check for 'Peter' for debugging
+  const { data: peterCheck } = await supabase
+    .from('profiles')
+    .select('first_name, last_name, student_id')
+    .or('first_name.ilike.%Peter%,last_name.ilike.%Peter%')
+    .limit(1);
+
   return NextResponse.json({
     success: true,
     message: 'Kestora Student Lookup API is online',
@@ -27,6 +34,7 @@ export async function GET() {
     databaseConnected: !!(supabaseUrl && supabaseKey),
     dbError: error ? error.message : null,
     visibleNames: samples || [],
+    peterFound: peterCheck && peterCheck.length > 0 ? peterCheck[0] : 'No one named Peter found',
     count: samples ? samples.length : 0
   });
 }
