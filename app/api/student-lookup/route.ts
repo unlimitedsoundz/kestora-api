@@ -41,38 +41,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Support both camelCase (firstName) and snake_case (first_name)
-    const rawFirstName = body.firstName || body.first_name || body.name;
+    // 2. Identify the input (could be name or studentId)
+    const input = (body.firstName || body.first_name || body.name || body.studentId || body.student_id || "").toString().trim();
 
-    // 2. Validate input - ensure firstName is provided
-    if (!rawFirstName) {
-      console.warn('Missing firstName in request body');
-      return NextResponse.json(
-        { success: false, message: 'firstName is required' },
-        { status: 400 }
-      );
+    if (!input) {
+      console.warn('No search input provided');
+      return NextResponse.json({ success: false, message: 'Input is required' }, { status: 400 });
     }
 
-    // 3. Diagnostic: Check if Supabase is properly configured
+    // Diagnostic: Check if Supabase is properly configured
     if (!supabaseUrl || !supabaseKey) {
       console.error('CRITICAL: Supabase environment variables are missing!');
-      return NextResponse.json(
-        { success: false, message: 'Server configuration error' },
-        { status: 500 }
-      );
+      return NextResponse.json({ success: false, message: 'Server configuration error' }, { status: 500 });
     }
 
-    const nameInput = rawFirstName.toString().trim();
-    // Handle spelled out names (P.E.T.E.R or P E T E R) by removing single characters followed by spaces/dots
-    const cleanedName = nameInput.length > 5 && nameInput.includes(' ') ? nameInput.replace(/(?:^|\s)([a-zA-Z])(?:\s|\.|$)/g, '$1') : nameInput;
+    // Determine if input is a Student ID (starts with KC or SYK) or a Name
+    const isStudentId = /^KC|^SYK/i.test(input);
     
-    const nameParts = cleanedName.split(/\s+/);
-    const firstNamePart = nameParts[0];
-    const lastNamePart = nameParts.length > 1 ? nameParts[nameParts.length - 1] : firstNamePart;
-
-    console.log(`Searching for student with name input: "${nameInput}" (Cleaned: ${cleanedName})`);
-
-    // 4. Query Strategy: Search by first_name or last_name with smart fallbacks
+    // 3. Query Strategy
     let query = supabase.from('profiles').select(`
         student_id,
         first_name,
@@ -90,33 +76,38 @@ export async function POST(req: NextRequest) {
           last_call_summary,
           visa_stage,
           late_applicant,
-          Course (
-            *
-          )
+          Course (*)
         )
       `);
 
-    // Try a few different matching strategies
-    query = query.or(`first_name.ilike.%${cleanedName}%,last_name.ilike.%${cleanedName}%,first_name.ilike.%${firstNamePart}%,last_name.ilike.%${lastNamePart}%`);
+    if (isStudentId) {
+      // Normalize ID (trim and uppercase)
+      const normalizedId = input.toUpperCase();
+      console.log(`Searching by Student ID: "${normalizedId}"`);
+      query = query.eq('student_id', normalizedId);
+    } else {
+      // Handle Name Search
+      const cleanedName = input.length > 5 && input.includes(' ') ? input.replace(/(?:^|\s)([a-zA-Z])(?:\s|\.|$)/g, '$1') : input;
+      const nameParts = cleanedName.split(/\s+/);
+      const firstNamePart = nameParts[0];
+      const lastNamePart = nameParts.length > 1 ? nameParts[nameParts.length - 1] : firstNamePart;
+      
+      console.log(`Searching by Name: "${input}" (Cleaned: ${cleanedName})`);
+      query = query.or(`first_name.ilike.%${cleanedName}%,last_name.ilike.%${cleanedName}%,first_name.ilike.%${firstNamePart}%,last_name.ilike.%${lastNamePart}%`);
+    }
 
     const { data, error } = await query.limit(1);
 
-    // 5. Handle Supabase query errors
+    // 4. Handle Supabase query errors
     if (error) {
-      console.error('Supabase error during lookup:', error);
-      return NextResponse.json(
-        { success: false, message: 'Database error' },
-        { status: 500 }
-      );
+      console.error('Supabase error:', error);
+      return NextResponse.json({ success: false, message: 'Database error' }, { status: 500 });
     }
 
-    // 6. Handle student not found
+    // 5. Handle student not found
     if (!data || data.length === 0) {
-      console.warn(`No record found for input: "${nameInput}"`);
-      return NextResponse.json(
-        { success: false, message: 'Student not found' },
-        { status: 404 }
-      );
+      console.warn(`No record found for: "${input}"`);
+      return NextResponse.json({ success: false, message: 'Student not found' }, { status: 404 });
     }
 
     const profile = data[0];
